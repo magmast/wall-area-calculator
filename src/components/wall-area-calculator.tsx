@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, type ChangeEvent, type FC } from "react";
+import { type ReactNode, useState, type FC } from "react";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
-import { Label } from "./ui/label";
 import { Plus, Minus } from "lucide-react";
 import {
   Card,
@@ -13,224 +12,290 @@ import {
   CardFooter,
 } from "./ui/card";
 import { Separator } from "./ui/separator";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "./ui/form";
+import { useFieldArray, useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import validator from "validator";
 
-interface WallLength {
-  length: number | "";
-}
+const floatInputSchema = (params: validator.IsFloatOptions = {}) =>
+  z
+    .string()
+    .refine(
+      (value) => validator.isFloat(value, params),
+      "Must be a valid number.",
+    )
+    .transform(Number);
 
-interface Opening {
-  width: number | "";
-  height: number | "";
-}
+const schema = z
+  .object({
+    wallHeight: floatInputSchema({ gt: 0 }),
+    wallLengths: z
+      .array(z.object({ length: floatInputSchema({ gt: 0 }) }))
+      .min(1),
+    openings: z.array(
+      z.object({
+        width: floatInputSchema({ gt: 0 }),
+        height: floatInputSchema({ gt: 0 }),
+      }),
+    ),
+  })
+  .superRefine((value, ctx) => {
+    value.openings.forEach((opening, index) => {
+      if (opening.height > value.wallHeight) {
+        ctx.addIssue({
+          code: "custom",
+          path: [...ctx.path, "openings", index, "height"],
+          message: "Opening height cannot be greater than height of the wall.",
+        });
+      }
+    });
+
+    // TODO: Check if total width of openings is lesser than total length of
+    //  walls. It's not done yet, because I don't want to bother with displaying
+    //  an error that's not related to a single field, but a number of fields at
+    //  once.
+  });
 
 export const WallAreaCalculator: FC = () => {
-  const [wallHeight, setWallHeight] = useState<number>(2.7);
-  const [wallLengths, setWallLengths] = useState<WallLength[]>([
-    { length: "" },
-  ]);
-  const [openings, setOpenings] = useState<Opening[]>([
-    { width: "", height: "" },
-  ]);
+  const form = useForm<
+    z.input<typeof schema>,
+    unknown,
+    z.output<typeof schema>
+  >({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      wallHeight: "2.7",
+      wallLengths: [{ length: "" }],
+      openings: [{ width: "", height: "" }],
+    },
+  });
+
+  const wallLengths = useFieldArray({
+    control: form.control,
+    name: "wallLengths",
+  });
+
+  const handleAddWall = () => wallLengths.append({ length: "" });
+
+  const handleRemoveWall = (index: number) => wallLengths.remove(index);
+
+  const openings = useFieldArray({
+    control: form.control,
+    name: "openings",
+  });
+
+  const handleAddOpening = () => openings.append({ width: "", height: "" });
+
+  const handleRemoveOpening = (index: number) => openings.remove(index);
+
   const [totalArea, setTotalArea] = useState<number | null>(null);
 
-  const isDirty =
-    wallHeight !== 2.7 ||
-    wallLengths.length !== 1 ||
-    wallLengths[0]?.length !== "" ||
-    openings.length !== 1 ||
-    openings[0]?.width !== "" ||
-    openings[0]?.height !== "";
-
-  const handleWallHeightChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
-    setWallHeight(value === "" ? 0 : parseFloat(value));
-  };
-
-  const handleWallLengthChange = (
-    index: number,
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
-    const values = [...wallLengths];
-    values[index]!.length =
-      event.target.value === "" ? "" : parseFloat(event.target.value);
-    setWallLengths(values);
-  };
-
-  const handleAddWall = () => {
-    setWallLengths([...wallLengths, { length: "" }]);
-  };
-
-  const handleRemoveWall = (index: number) => {
-    const values = [...wallLengths];
-    values.splice(index, 1);
-    setWallLengths(values);
-  };
-
-  const handleOpeningChange = (
-    index: number,
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
-    const values = [...openings];
-    const { name, value } = event.target;
-    values[index]![name as keyof Opening] =
-      value === "" ? "" : parseFloat(value);
-    setOpenings(values);
-  };
-
-  const handleAddOpening = () => {
-    setOpenings([...openings, { width: "", height: "" }]);
-  };
-
-  const handleRemoveOpening = (index: number) => {
-    const values = [...openings];
-    values.splice(index, 1);
-    setOpenings(values);
-  };
-
-  const calculateArea = () => {
+  const handleSubmit = ({
+    wallHeight,
+    wallLengths,
+    openings,
+  }: z.output<typeof schema>) => {
     const totalWallLength = wallLengths.reduce(
-      (sum, wall) => sum + (wall.length || 0),
+      (sum, wall) => sum + wall.length,
       0,
     );
-
     const wallArea = totalWallLength * wallHeight;
 
     const totalOpeningsArea = openings.reduce(
-      (sum, opening) => sum + (opening.width || 0) * (opening.height || 0),
+      (sum, opening) => sum + opening.width * opening.height,
       0,
     );
-
     const netWallArea = wallArea - totalOpeningsArea;
 
     setTotalArea(netWallArea);
   };
 
-  const clear = () => {
-    setWallHeight(2.7);
-    setWallLengths([{ length: "" }]);
-    setOpenings([{ width: "", height: "" }]);
+  const handleReset = () => {
     setTotalArea(null);
+    form.reset();
   };
 
   return (
-    <Card className="mx-auto max-w-2xl p-6">
-      <CardHeader>
-        <CardTitle className="text-2xl">Wall Area Calculator</CardTitle>
-      </CardHeader>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleSubmit)}>
+        <Card className="mx-auto w-full max-w-2xl p-6">
+          <CardHeader>
+            <CardTitle className="text-2xl">Wall Area Calculator</CardTitle>
+          </CardHeader>
 
-      <CardContent>
-        <div className="mb-6">
-          <Label htmlFor="wallHeight" className="mb-2 block">
-            Wall Height (meters):
-          </Label>
-          <Input
-            id="wallHeight"
-            type="number"
-            value={wallHeight}
-            onChange={handleWallHeightChange}
-            min="0"
-            step="0.01"
-            className="w-full"
-          />
-        </div>
+          <CardContent>
+            <FormField
+              control={form.control}
+              name="wallHeight"
+              render={({ field }) => (
+                <FormItem className="mb-6">
+                  <FormLabel>Wall Height (meters):</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="number" min="0" step="0.01" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-        <Separator className="my-4" />
+            <Separator className="my-4" />
 
-        <div className="mb-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold">Wall Lengths (meters)</h3>
-            <Button variant="ghost" size="sm" onClick={handleAddWall}>
-              <Plus className="mr-2 h-4 w-4" /> Add Wall
+            <ArrayField
+              label="Wall Lengths (meters)"
+              addLabel="Add Wall"
+              onAdd={handleAddWall}
+            >
+              {wallLengths.fields.map(({ id }, index) => (
+                <FieldRow key={id} onRemove={() => handleRemoveWall(index)}>
+                  <FormField
+                    control={form.control}
+                    name={`wallLengths.${index}.length`}
+                    render={({ field }) => (
+                      <FormItem className="flex-grow">
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="number"
+                            placeholder={`Wall ${index + 1} Length`}
+                            min="0"
+                            step="0.01"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </FieldRow>
+              ))}
+            </ArrayField>
+
+            <Separator className="my-4" />
+
+            <ArrayField
+              label="Doors and Windows"
+              addLabel="Add Door/Window"
+              onAdd={handleAddOpening}
+            >
+              {openings.fields.map(({ id }, index) => (
+                <FieldRow key={id} onRemove={() => handleRemoveOpening(index)}>
+                  <FormField
+                    control={form.control}
+                    name={`openings.${index}.width`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="number"
+                            placeholder={`Opening ${index + 1} Width (m)`}
+                            min="0"
+                            step="0.01"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name={`openings.${index}.height`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="number"
+                            placeholder={`Opening ${index + 1} Height (m)`}
+                            min="0"
+                            step="0.01"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </FieldRow>
+              ))}
+            </ArrayField>
+          </CardContent>
+
+          <CardFooter className="flex flex-col items-center">
+            <Button type="submit" className="mb-2 w-full">
+              Calculate Total Wall Area
             </Button>
-          </div>
-          {wallLengths.map((wall, index) => (
-            <div key={index} className="mt-4 flex items-center">
-              <Input
-                type="number"
-                placeholder={`Wall ${index + 1} Length`}
-                value={wall.length}
-                onChange={(e) => handleWallLengthChange(index, e)}
-                min="0"
-                step="0.01"
-                className="w-full"
-              />
+
+            {form.formState.isDirty && (
               <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleRemoveWall(index)}
-                className="ml-2"
-              >
-                <Minus className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
-        </div>
-
-        <Separator className="my-4" />
-
-        <div className="mb-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold">Doors and Windows</h3>
-            <Button variant="ghost" size="sm" onClick={handleAddOpening}>
-              <Plus className="mr-2 h-4 w-4" /> Add Door/Window
-            </Button>
-          </div>
-          {openings.map((opening, index) => (
-            <div key={index} className="mt-4 flex items-center space-x-2">
-              <Input
-                type="number"
-                name="width"
-                placeholder={`Opening ${index + 1} Width (m)`}
-                value={opening.width}
-                onChange={(e) => handleOpeningChange(index, e)}
-                min="0"
-                step="0.01"
+                type="reset"
+                onClick={handleReset}
                 className="w-full"
-              />
-              <Input
-                type="number"
-                name="height"
-                placeholder={`Opening ${index + 1} Height (m)`}
-                value={opening.height}
-                onChange={(e) => handleOpeningChange(index, e)}
-                min="0"
-                step="0.01"
-                className="w-full"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleRemoveOpening(index)}
+                variant="destructive"
               >
-                <Minus className="h-4 w-4" />
+                Reset
               </Button>
-            </div>
-          ))}
-        </div>
-      </CardContent>
+            )}
 
-      <CardFooter className="flex flex-col items-center">
-        <Button onClick={calculateArea} className="mb-2 w-full">
-          Calculate Total Wall Area
-        </Button>
-
-        {isDirty && (
-          <Button onClick={clear} className="w-full" variant="destructive">
-            Clear
-          </Button>
-        )}
-
-        {totalArea !== null && (
-          <div className="mt-6 text-center">
-            <h3 className="text-xl font-semibold">
-              Total Wall Area (excluding doors and windows):
-            </h3>
-            <p className="text-2xl font-bold">
-              {totalArea.toFixed(2)} square meters
-            </p>
-          </div>
-        )}
-      </CardFooter>
-    </Card>
+            {totalArea !== null && (
+              <div className="mt-6 text-center">
+                <h3 className="text-xl font-semibold">
+                  Total Wall Area (excluding doors and windows):
+                </h3>
+                <p className="text-2xl font-bold">
+                  {totalArea.toFixed(2)} square meters
+                </p>
+              </div>
+            )}
+          </CardFooter>
+        </Card>
+      </form>
+    </Form>
   );
 };
+
+const ArrayField: FC<
+  {
+    label: string;
+    children?: ReactNode;
+  } & (
+    | { addLabel: string; onAdd: () => void }
+    | { addLabel?: undefined; onAdd?: undefined }
+  )
+> = ({ label, children, addLabel, onAdd }) => (
+  <div className="mb-6">
+    <div className="flex items-center justify-between">
+      <h3 className="text-xl font-semibold">{label}</h3>
+
+      {addLabel != null && onAdd != null && (
+        <Button type="button" variant="ghost" size="sm" onClick={onAdd}>
+          <Plus className="mr-2 h-4 w-4" /> {addLabel}
+        </Button>
+      )}
+    </div>
+
+    {children}
+  </div>
+);
+
+const FieldRow: FC<{ children: ReactNode; onRemove?: () => void }> = ({
+  children,
+  onRemove,
+}) => (
+  <div className="mt-4 flex items-center space-x-2">
+    {children}
+
+    {onRemove != null && (
+      <Button type="button" variant="ghost" size="icon" onClick={onRemove}>
+        <Minus className="h-4 w-4" />
+      </Button>
+    )}
+  </div>
+);

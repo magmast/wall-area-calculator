@@ -1,9 +1,10 @@
+import { type FC } from "react";
 import { WallAreaCalculator } from "~/components/wall-area-calculator";
 
-export default function HomePage() {
-  return (
-    <main className="flex min-h-screen items-center justify-center">
-      <WallAreaCalculator />
-    </main>
-  );
-}
+const HomePage: FC = () => (
+  <main className="flex min-h-screen items-center justify-center bg-zinc-100 p-4">
+    <WallAreaCalculator />
+  </main>
+);
+
+export default HomePage;
