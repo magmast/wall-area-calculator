@@ -1,17 +1,17 @@
 "use client";
 
-import { type ReactNode, useState, type FC } from "react";
+import { type ReactNode, useState, forwardRef, type ForwardedRef } from "react";
 import { Input } from "./ui/input";
-import { Button } from "./ui/button";
+import { Button, MotionButton } from "./ui/button";
 import { Plus, Minus } from "lucide-react";
 import {
   Card,
-  CardHeader,
   CardTitle,
   CardContent,
-  CardFooter,
+  MotionCardFooter,
+  MotionCardHeader,
 } from "./ui/card";
-import { Separator } from "./ui/separator";
+import { MotionSeparator } from "./ui/separator";
 import {
   Form,
   FormControl,
@@ -24,6 +24,12 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import validator from "validator";
+import { AnimatePresence } from "motion/react";
+import * as motion from "motion/react-client";
+
+const MotionCard = motion.create(Card);
+
+const MotionCardContent = motion.create(CardContent);
 
 const floatInputSchema = (params: validator.IsFloatOptions = {}) =>
   z
@@ -64,7 +70,7 @@ const schema = z
     //  once.
   });
 
-export const WallAreaCalculator: FC = () => {
+export const WallAreaCalculator = () => {
   const form = useForm<
     z.input<typeof schema>,
     unknown,
@@ -126,12 +132,12 @@ export const WallAreaCalculator: FC = () => {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)}>
-        <Card className="mx-auto w-full max-w-2xl p-6">
-          <CardHeader>
+        <MotionCard className="mx-auto w-full max-w-2xl p-6" layout>
+          <MotionCardHeader layout>
             <CardTitle className="text-2xl">Wall Area Calculator</CardTitle>
-          </CardHeader>
+          </MotionCardHeader>
 
-          <CardContent>
+          <MotionCardContent layout>
             <FormField
               control={form.control}
               name="wallHeight"
@@ -146,38 +152,48 @@ export const WallAreaCalculator: FC = () => {
               )}
             />
 
-            <Separator className="my-4" />
+            <MotionSeparator className="my-4" layout />
 
             <ArrayField
               label="Wall Lengths (meters)"
               addLabel="Add Wall"
               onAdd={handleAddWall}
             >
-              {wallLengths.fields.map(({ id }, index) => (
-                <FieldRow key={id} onRemove={() => handleRemoveWall(index)}>
-                  <FormField
-                    control={form.control}
-                    name={`wallLengths.${index}.length`}
-                    render={({ field }) => (
-                      <FormItem className="flex-grow">
-                        <FormControl>
-                          <Input
-                            {...field}
-                            type="number"
-                            placeholder={`Wall ${index + 1} Length`}
-                            min="0"
-                            step="0.01"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </FieldRow>
-              ))}
+              <AnimatePresence>
+                {wallLengths.fields.map(({ id }, index) => (
+                  <MotionFieldRow
+                    key={id}
+                    onRemove={() => handleRemoveWall(index)}
+                    initial={{ scaleY: 0 }}
+                    animate={{ scaleY: 1 }}
+                    exit={{ scaleY: 0 }}
+                    transition={{ duration: 0.1 }}
+                    layout
+                  >
+                    <FormField
+                      control={form.control}
+                      name={`wallLengths.${index}.length`}
+                      render={({ field }) => (
+                        <FormItem className="flex-grow">
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type="number"
+                              placeholder={`Wall ${index + 1} Length`}
+                              min="0"
+                              step="0.01"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </MotionFieldRow>
+                ))}
+              </AnimatePresence>
             </ArrayField>
 
-            <Separator className="my-4" />
+            <MotionSeparator className="my-4" layout />
 
             <ArrayField
               label="Doors and Windows"
@@ -185,7 +201,14 @@ export const WallAreaCalculator: FC = () => {
               onAdd={handleAddOpening}
             >
               {openings.fields.map(({ id }, index) => (
-                <FieldRow key={id} onRemove={() => handleRemoveOpening(index)}>
+                <MotionFieldRow
+                  key={id}
+                  onRemove={() => handleRemoveOpening(index)}
+                  initil={{ scaleY: 0 }}
+                  animate={{ scaleY: 1 }}
+                  exit={{ scaleY: 0 }}
+                  layout
+                >
                   <FormField
                     control={form.control}
                     name={`openings.${index}.width`}
@@ -223,26 +246,32 @@ export const WallAreaCalculator: FC = () => {
                       </FormItem>
                     )}
                   />
-                </FieldRow>
+                </MotionFieldRow>
               ))}
             </ArrayField>
-          </CardContent>
+          </MotionCardContent>
 
-          <CardFooter className="flex flex-col items-center">
-            <Button type="submit" className="mb-2 w-full">
+          <MotionCardFooter className="flex flex-col items-center" layout>
+            <MotionButton type="submit" className="mb-2 w-full" layout>
               Calculate Total Wall Area
-            </Button>
+            </MotionButton>
 
-            {form.formState.isDirty && (
-              <Button
-                type="reset"
-                onClick={handleReset}
-                className="w-full"
-                variant="destructive"
-              >
-                Reset
-              </Button>
-            )}
+            <AnimatePresence>
+              {form.formState.isDirty && (
+                <MotionButton
+                  type="reset"
+                  onClick={handleReset}
+                  className="w-full"
+                  variant="destructive"
+                  layout
+                  initial={{ scaleY: 0 }}
+                  animate={{ scaleY: 1 }}
+                  exit={{ scaleY: 0 }}
+                >
+                  Reset
+                </MotionButton>
+              )}
+            </AnimatePresence>
 
             {totalArea !== null && (
               <div className="mt-6 text-center">
@@ -254,24 +283,27 @@ export const WallAreaCalculator: FC = () => {
                 </p>
               </div>
             )}
-          </CardFooter>
-        </Card>
+          </MotionCardFooter>
+        </MotionCard>
       </form>
     </Form>
   );
 };
 
-const ArrayField: FC<
-  {
-    label: string;
-    children?: ReactNode;
-  } & (
-    | { addLabel: string; onAdd: () => void }
-    | { addLabel?: undefined; onAdd?: undefined }
-  )
-> = ({ label, children, addLabel, onAdd }) => (
-  <div className="mb-6">
-    <div className="flex items-center justify-between">
+const ArrayField = ({
+  label,
+  children,
+  addLabel,
+  onAdd,
+}: {
+  label: string;
+  children?: ReactNode;
+} & (
+  | { addLabel: string; onAdd: () => void }
+  | { addLabel?: undefined; onAdd?: undefined }
+)) => (
+  <motion.div className="mb-6" layout>
+    <motion.div layout className="flex items-center justify-between">
       <h3 className="text-xl font-semibold">{label}</h3>
 
       {addLabel != null && onAdd != null && (
@@ -279,23 +311,28 @@ const ArrayField: FC<
           <Plus className="mr-2 h-4 w-4" /> {addLabel}
         </Button>
       )}
+    </motion.div>
+
+    {children}
+  </motion.div>
+);
+
+const FieldRow = forwardRef(
+  (
+    { children, onRemove }: { children: ReactNode; onRemove?: () => void },
+    ref?: ForwardedRef<HTMLDivElement>,
+  ) => (
+    <div ref={ref} className="mt-4 flex items-center space-x-2">
+      {children}
+
+      {onRemove != null && (
+        <Button type="button" variant="ghost" size="icon" onClick={onRemove}>
+          <Minus className="h-4 w-4" />
+        </Button>
+      )}
     </div>
-
-    {children}
-  </div>
+  ),
 );
+FieldRow.displayName = "FieldRow";
 
-const FieldRow: FC<{ children: ReactNode; onRemove?: () => void }> = ({
-  children,
-  onRemove,
-}) => (
-  <div className="mt-4 flex items-center space-x-2">
-    {children}
-
-    {onRemove != null && (
-      <Button type="button" variant="ghost" size="icon" onClick={onRemove}>
-        <Minus className="h-4 w-4" />
-      </Button>
-    )}
-  </div>
-);
+const MotionFieldRow = motion.create(FieldRow);
